@@ -4,45 +4,67 @@ import tkinter.simpledialog as tkSimpleDialog
 import socket
 import threading
 
+# ask if user wants a gui or comandline
+def ask_gui():
+    gui = input("Do you want a gui? (y/n) ")
+    if gui == y:
+        return True
+    elif gui == n:
+        return False
+    else:
+        print("Wrong input")
+        ask_gui()
 
-def start_server():
-    t1 = threading.Thread(target=server.start_server)
-    t2 = threading.Thread(target=receiver.start_server)
-    t3 = threading.Thread(target=chatRoom.start)
-    t1.start()
-    t2.start()
-    t3.start()
 
-def stop_server():
-    server.stop_server()
-    receiver.stop_server()
-    chatRoom.stop()
-    exit()
+if ask_gui():
 
-window = tk.Tk()
-window.withdraw()
+    def start_server():
+        t1 = threading.Thread(target=server.start_server)
+        t2 = threading.Thread(target=receiver.start_server)
+        t3 = threading.Thread(target=chatRoom.start)
+        t1.start()
+        t2.start()
+        t3.start()
 
-server_address = tkSimpleDialog.askstring("Server Address", "Enter the server address:")
+    def stop_server():
+        server.stop_server()
+        receiver.stop_server()
+        chatRoom.stop()
+        exit()
 
-if server_address is None:
-    server_address = socket.gethostbyname(socket.gethostname())
+    window = tk.Tk()
+    window.withdraw()
 
-server = StreamingServer(server_address, 9999)
-receiver = AudioServer(server_address, 8888)
-chatRoom = ChatServer(server_address, 7777)
+    server_address = tkSimpleDialog.askstring("Server Address", "Enter the server address:")
 
-window.wm_deiconify()
+    if server_address is None:
+        server_address = socket.gethostbyname(socket.gethostname())
 
-window.title("Server")
-window.geometry("300x200")
+    server = StreamingServer(server_address, 9999)
+    receiver = AudioServer(server_address, 8888)
+    chatRoom = ChatServer(server_address, 7777)
 
-text_target_ip = tk.Text(window, height=1)
-text_target_ip.pack()
+    window.wm_deiconify()
 
-btn_listen = tk.Button(window, text="Start Server", width=50, command=start_server)
-btn_listen.pack(anchor=tk.CENTER, expand=True)
+    window.title("Server")
+    window.geometry("300x200")
 
-btn_stop = tk.Button(window, text="Stop Server", width=50, command=stop_server)
-btn_stop.pack(anchor=tk.CENTER, expand=True)
+    text_target_ip = tk.Text(window, height=1)
+    text_target_ip.pack()
 
-window.mainloop()
+    btn_listen = tk.Button(window, text="Start Server", width=50, command=start_server)
+    btn_listen.pack(anchor=tk.CENTER, expand=True)
+
+    btn_stop = tk.Button(window, text="Stop Server", width=50, command=stop_server)
+    btn_stop.pack(anchor=tk.CENTER, expand=True)
+
+    window.mainloop()
+else:
+    server_address = input("Enter the server address: ")
+    server = StreamingServer(server_address, 9999)
+    receiver = AudioServer(server_address, 8888)
+    chatRoom = ChatServer(server_address, 7777)
+
+    server.start_server()
+    receiver.start_server()
+    chatRoom.start()
