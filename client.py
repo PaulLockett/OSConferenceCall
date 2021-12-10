@@ -5,15 +5,8 @@ import tkinter.simpledialog as tkSimpleDialog
 import sys
 import threading
 
- 
-label_tartget_ip = ""
 
 gui_rendered = False
-
-if label_tartget_ip:
-    client = StreamingClient(label_tartget_ip, 9999)
-    receiver = AudioClient(label_tartget_ip, 8888)
-    chatRoom = ChatClient(label_tartget_ip, 9090)
 
 def start_listening():
     t1 = threading.Thread(target=client.start_listening)
@@ -96,7 +89,7 @@ loadingWindow.update()
 if server_address:
     client = StreamingClient(server_address, 9999)
     receiver = AudioClient(server_address, 8888)
-    chatRoom = ChatClient(server_address, 7777)
+    chatRoom = ChatClient(server_address, 9090)
 
 loadingWindow.withdraw()
 window.wm_deiconify()
