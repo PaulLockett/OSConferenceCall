@@ -1,6 +1,5 @@
 import socket
 import pyaudio
-import select
 import threading
 class AudioClient:
 

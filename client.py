@@ -3,7 +3,6 @@ import tkinter as tk
 import tkinter.scrolledtext as tkst
 import tkinter.simpledialog as tkSimpleDialog
 import sys
-import socket
 import threading
 
  
