@@ -32,8 +32,8 @@ class StreamingServer:
             host address of the listening server
         __port : int
             port on which the server is listening
-        __slots : int
-            amount of maximum avaialable slots (not ready yet)
+        __clients : list
+            list of all connected clients
         __used_slots : int
             amount of used slots (not ready yet)
         __quit_key : chr
@@ -61,8 +61,7 @@ class StreamingServer:
         stop_server : stops the server and closes all connections
     """
 
-    # TODO: Implement slots functionality
-    def __init__(self, host, port, slots=8, quit_key='q'):
+    def __init__(self, host, port, quit_key='q'):
         """
         Creates a new instance of StreamingServer
 
@@ -80,7 +79,7 @@ class StreamingServer:
         """
         self.__host = host
         self.__port = port
-        self.__slots = slots
+        self.__clients = []
         self.__used_slots = 0
         self.__running = False
         self.__quit_key = quit_key
@@ -104,6 +103,7 @@ class StreamingServer:
             self.__running = True
             server_thread = threading.Thread(target=self.__server_listening)
             server_thread.start()
+            print("Server started")
 
     def __server_listening(self):
         """
@@ -111,18 +111,13 @@ class StreamingServer:
         """
         self.__server_socket.listen()
         while self.__running:
-            self.__block.acquire()
-            connection, address = self.__server_socket.accept()
-            if self.__used_slots >= self.__slots:
-                print("Connection refused! No free slots!")
-                connection.close()
-                self.__block.release()
-                continue
-            else:
-                self.__used_slots += 1
-            self.__block.release()
-            thread = threading.Thread(target=self.__client_connection, args=(connection, address,))
+
+            client_socket, client_address = self.__server_socket.accept()
+            self.__clients.append(client_socket)
+
+            thread = threading.Thread(target=self.__client_connection, args=(client_socket,))
             thread.start()
+            print("server: new client connected")
 
     def stop_server(self):
         """
@@ -136,10 +131,163 @@ class StreamingServer:
             self.__block.acquire()
             self.__server_socket.close()
             self.__block.release()
+            print("Server stopped")
         else:
             print("Server not running!")
 
-    def __client_connection(self, connection, address):
+    def __client_connection(self, client_socket):
+        """
+        Handles the individual client connections and processes their stream data.
+        """
+        payload_size = struct.calcsize('>L')
+        data = b""
+
+        while self.__running:
+            try:
+                received = client_socket.recv(4096)
+                if received == b'':
+                    break
+                
+                for client in self.__clients:
+                    client.sendall(received)
+            except:
+                self.__clients.remove(client_socket)
+                print("server: client {} disconnected from server".format(client_socket.getpeername()))
+                break
+                    
+                    
+class StreamingClient:
+    """
+    class for the camera streaming and listening client.
+
+    Attributes
+    ----------
+
+    Private:
+
+        __host : str
+            host address to connect to
+        __port : int
+            port to connect to
+        __running : bool
+            inicates if the client is already listening or not
+        __streaming : bool
+            inicates if the client is already streaming or not
+        __encoding_parameters : list
+            a list of encoding parameters for OpenCV
+        __client_socket : socket
+            the main client socket
+        __camera : VideoCapture
+            the camera object
+        __x_res : int
+            the x resolution
+        __y_res : int
+            the y resolution
+        __quit_key : chr
+            key that has to be pressed to close connection
+
+
+    Methods
+    -------
+
+    Private:
+
+        __client_streaming : main method for streaming the client data
+        __server_listening : main method for listening for server data
+
+    Protected:
+
+        _configure : sets basic configurations
+        _get_frame : returns the camera frame to be sent to the server
+        _cleanup : cleans up all the resources and closes everything
+
+    Public:
+
+        start_streaming : starts the camera stream in a new thread
+        start_listening : starts the server listener in a new thread
+        stop_streaming : stops the camera stream
+        disconnect : disconnects from the server
+    """
+
+    def __init__(self, host, port, x_res=1024, y_res=576, quit_key='q'):
+        """
+        Creates a new instance of StreamingClient.
+
+        Parameters
+        ----------
+
+        host : str
+            host address to connect to
+        port : int
+            port to connect to
+        x_res : int
+            x resolution of the stream
+        y_res : int
+            y resolution of the stream
+        quit_key : chr
+            key that has to be pressed to close connection (default = 'q')
+        """
+        self.__host = host
+        self.__port = port
+        self.__x_res = x_res
+        self.__y_res = y_res
+        self.__quit_key = quit_key
+        self.__camera = cv2.VideoCapture(0)
+        self._configure()
+        self.__running = False
+        self.__streaming = False
+        self.__client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    def _configure(self):
+        """
+        Sets the camera resultion and the encoding parameters.
+        """
+        self.__camera.set(3, self.__x_res)
+        self.__camera.set(4, self.__y_res)
+        self.__encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
+
+    def _get_frame(self):
+        """
+        Gets the next camera frame.
+
+        Returns
+        -------
+
+        frame : the next camera frame to be processed
+        """
+        ret, frame = self.__camera.read()
+        return frame
+
+    def _cleanup(self):
+        """
+        Cleans up resources and closes everything.
+        """
+        self.__camera.release()
+        cv2.destroyAllWindows()
+        
+    def __client_streaming(self, connection):
+        """
+        Main method for streaming the client data.
+        """
+        
+        while self.__streaming:
+            frame = self._get_frame()
+            result, frame = cv2.imencode('.jpg', frame, self.__encoding_parameters)
+            data = pickle.dumps(frame, 0)
+            size = len(data)
+
+            try:
+                connection.sendall(struct.pack('>L', size) + data)
+            except ConnectionResetError:
+                self.__streaming = False
+            except ConnectionAbortedError:
+                self.__streaming = False
+            except BrokenPipeError:
+                self.__streaming = False
+
+        self._cleanup()
+
+    def __server_listening(self, connection, address):
         """
         Handles the individual client connections and processes their stream data.
         """
@@ -181,216 +329,54 @@ class StreamingServer:
                 self.__used_slots -= 1
                 break
 
-
-class StreamingClient:
-    """
-    Abstract class for the generic streaming client.
-
-    Attributes
-    ----------
-
-    Private:
-
-        __host : str
-            host address to connect to
-        __port : int
-            port to connect to
-        __running : bool
-            inicates if the client is already streaming or not
-        __encoding_parameters : list
-            a list of encoding parameters for OpenCV
-        __client_socket : socket
-            the main client socket
-
-
-    Methods
-    -------
-
-    Private:
-
-        __client_streaming : main method for streaming the client data
-
-    Protected:
-
-        _configure : sets basic configurations (overridden by child classes)
-        _get_frame : returns the frame to be sent to the server (overridden by child classes)
-        _cleanup : cleans up all the resources and closes everything
-
-    Public:
-
-        start_stream : starts the client stream in a new thread
-    """
-
-    def __init__(self, host, port):
-        """
-        Creates a new instance of StreamingClient.
-
-        Parameters
-        ----------
-
-        host : str
-            host address to connect to
-        port : int
-            port to connect to
-        """
-        self.__host = host
-        self.__port = port
-        self._configure()
-        self.__running = False
-        self.__client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    def _configure(self):
-        """
-        Basic configuration function.
-        """
-        self.__encoding_parameters = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
-
-    def _get_frame(self):
-        """
-        Basic function for getting the next frame.
-
-        Returns
-        -------
-
-        frame : the next frame to be processed (default = None)
-        """
-        return None
-
-    def _cleanup(self):
-        """
-        Cleans up resources and closes everything.
-        """
-        cv2.destroyAllWindows()
-
-    def __client_streaming(self):
-        """
-        Main method for streaming the client data.
-        """
-        self.__client_socket.connect((self.__host, self.__port))
-        while self.__running:
-            frame = self._get_frame()
-            result, frame = cv2.imencode('.jpg', frame, self.__encoding_parameters)
-            data = pickle.dumps(frame, 0)
-            size = len(data)
-
-            try:
-                self.__client_socket.sendall(struct.pack('>L', size) + data)
-            except ConnectionResetError:
-                self.__running = False
-            except ConnectionAbortedError:
-                self.__running = False
-            except BrokenPipeError:
-                self.__running = False
-
-        self._cleanup()
-
-    def start_stream(self):
+    def start_listening(self):
         """
         Starts client stream if it is not already running.
         """
 
         if self.__running:
-            print("Client is already streaming!")
+            print("Client is already connected!")
         else:
             self.__running = True
-            client_thread = threading.Thread(target=self.__client_streaming)
-            client_thread.start()
+
+            self.__client_socket.connect((self.__host, self.__port))
+
+            address = self.__client_socket.getsockname()
+
+            listening_thread = threading.Thread(target=self.__server_listening, args=(self.__client_socket, address,))
+            listening_thread.start()
+            print("Client is now connected to {}:{}".format(self.__host, self.__port))
+
+    def start_streaming(self):
+        """
+        Starts the client stream in a new thread.
+        """
+        if self.__streaming:
+            print("Client is already streaming!")
+        else:
+            self.__streaming = True
+            thread = threading.Thread(target=self.__client_streaming, args=(self.__client_socket,))
+            thread.start()
+            print("Client is now streaming!")
 
     def stop_stream(self):
         """
         Stops client stream if running
         """
-        if self.__running:
-            self.__running = False
+        if self.__streaming:
+            self.__streaming = False
+            print("Client is now stopped streaming!")
         else:
             print("Client not streaming!")
 
-
-class CameraClient(StreamingClient):
-    """
-    Class for the camera streaming client.
-
-    Attributes
-    ----------
-
-    Private:
-
-        __host : str
-            host address to connect to
-        __port : int
-            port to connect to
-        __running : bool
-            inicates if the client is already streaming or not
-        __encoding_parameters : list
-            a list of encoding parameters for OpenCV
-        __client_socket : socket
-            the main client socket
-        __camera : VideoCapture
-            the camera object
-        __x_res : int
-            the x resolution
-        __y_res : int
-            the y resolution
-
-
-    Methods
-    -------
-
-    Protected:
-
-        _configure : sets basic configurations
-        _get_frame : returns the camera frame to be sent to the server
-        _cleanup : cleans up all the resources and closes everything
-
-    Public:
-
-        start_stream : starts the camera stream in a new thread
-    """
-
-    def __init__(self, host, port, x_res=1024, y_res=576):
+    def disconnect(self):
         """
-        Creates a new instance of CameraClient.
-
-        Parameters
-        ----------
-
-        host : str
-            host address to connect to
-        port : int
-            port to connect to
-        x_res : int
-            the x resolution
-        y_res : int
-            the y resolution
+        Disconnects the client from the server.
         """
-        self.__x_res = x_res
-        self.__y_res = y_res
-        self.__camera = cv2.VideoCapture(0)
-        super(CameraClient, self).__init__(host, port)
-
-    def _configure(self):
-        """
-        Sets the camera resultion and the encoding parameters.
-        """
-        self.__camera.set(3, self.__x_res)
-        self.__camera.set(4, self.__y_res)
-        super(CameraClient, self)._configure()
-
-    def _get_frame(self):
-        """
-        Gets the next camera frame.
-
-        Returns
-        -------
-
-        frame : the next camera frame to be processed
-        """
-        ret, frame = self.__camera.read()
-        return frame
-
-    def _cleanup(self):
-        """
-        Cleans up resources and closes everything.
-        """
-        self.__camera.release()
-        cv2.destroyAllWindows()
+        if self.__running:
+            self.__running = False
+            self.__client_socket.close()
+            print("Client is now disconnected!")
+        else:
+            print("Client not connected!")
+    
