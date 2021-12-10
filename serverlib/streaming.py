@@ -112,7 +112,7 @@ class StreamingServer:
         self.__server_socket.listen()
         while self.__running:
 
-            client_socket, client_address = self.__server_socket.accept()
+            client_socket, _ = self.__server_socket.accept()
             self.__clients.append(client_socket)
 
             thread = threading.Thread(target=self.__client_connection, args=(client_socket,))
@@ -139,8 +139,6 @@ class StreamingServer:
         """
         Handles the individual client connections and processes their stream data.
         """
-        payload_size = struct.calcsize('>L')
-        data = b""
 
         while self.__running:
             try:
@@ -152,7 +150,8 @@ class StreamingServer:
                     client.sendall(received)
             except:
                 self.__clients.remove(client_socket)
-                print("server: client {} disconnected from server".format(client_socket.getpeername()))
+                client_socket.close()
+                print("server: a client disconnected from server")
                 break
                     
                     
