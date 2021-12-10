@@ -1,18 +1,4 @@
-"""
-This module implements the main functionality of vidstream.
-
-Author: Florian Dedov from NeuralNine
-YouTube: https://www.youtube.com/c/NeuralNine
-"""
-
-__author__ = "Florian Dedov, NeuralNine"
-__email__ = "mail@neuralnine.com"
-__status__ = "planning"
-
 import cv2
-import pyautogui
-import numpy as np
-
 import socket
 import pickle
 import struct
@@ -34,8 +20,6 @@ class StreamingServer:
             port on which the server is listening
         __clients : list
             list of all connected clients
-        __used_slots : int
-            amount of used slots (not ready yet)
         __quit_key : chr
             key that has to be pressed to close connection
         __running : bool
