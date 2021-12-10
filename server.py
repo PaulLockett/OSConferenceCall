@@ -7,9 +7,9 @@ import threading
 # ask if user wants a gui or comandline
 def ask_gui():
     gui = input("Do you want a gui? (y/n) ")
-    if gui == y:
+    if gui == "y":
         return True
-    elif gui == n:
+    elif gui == "n":
         return False
     else:
         print("Wrong input")
