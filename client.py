@@ -6,18 +6,17 @@ import threading
  
 local_ip_address = socket.gethostbyname(socket.gethostname())
 
-server = StreamingServer(local_ip_address, 7777)
+client = StreamingClient(local_ip_address, 9999)
 receiver = AudioReceiver(local_ip_address, 6666)
 
 def start_listening():
-    t1 = threading.Thread(target=server.start_server)
+    t1 = threading.Thread(target=client.start_listening)
     t2 = threading.Thread(target=receiver.start_server)
     t1.start()
     t2.start()
 
 def start_camera_stream():
-    camera_client = CameraClient(text_target_ip.get(1.0, 'end-1c'), 9999)
-    t3 = threading.Thread(target=camera_client.start_stream)
+    t3 = threading.Thread(target=client.start_streaming)
     t3.start()
 
 def start_audio_stream():
