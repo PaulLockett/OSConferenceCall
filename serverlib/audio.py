@@ -2,8 +2,7 @@ import socket
 import pyaudio
 import select
 import threading
-
-class AudioSender:
+class AudioClient:
 
     def __init__(self, host, port, audio_format=pyaudio.paInt16, channels=1, rate=44100, frame_chunk=4096):
         self.__host = host
@@ -14,55 +13,79 @@ class AudioSender:
         self.__rate = rate
         self.__frame_chunk = frame_chunk
 
-        self.__sending_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.__client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.__audio = pyaudio.PyAudio()
 
         self.__running = False
-
-    #
-    # def __callback(self, in_data, frame_count, time_info, status):
-    #     if self.__running:
-    #         self.__sending_socket.send(in_data)
-    #         return (None, pyaudio.paContinue)
-    #     else:
-    #         try:
-    #             self.__stream.stop_stream()
-    #             self.__stream.close()
-    #             self.__audio.terminate()
-    #             self.__sending_socket.close()
-    #         except OSError:
-    #             pass # Dirty Solution For Now (Read Overflow)
-    #         return (None, pyaudio.paComplete)
-
+        self.__streaming = False
+       
     def start_stream(self):
-        if self.__running:
+        if self.__streaming:
             print("Already streaming")
         else:
+            self.__streaming = True
+            thread = threading.Thread(target=self.__audio_streaming)
+            thread.start()
+            print("Streaming audio")
+    
+    def stop_stream(self):
+        if self.__streaming:
+            self.__streaming = False
+            print("Stopped streaming")
+        else:
+            print("Client already not streaming")
+    
+    def __audio_streaming(self):
+        while self.__streaming:
+            self.__client_socket.send(self.__streamIn.read(self.__frame_chunk))
+    
+    def __audio_connection(self):
+        while self.__running:
+            data = self.__client_socket.recv(self.__frame_chunk)
+            self.__streamOut.write(data)
+    
+    def start_listening(self):
+        """
+        Starts client audio stream if it is not already running.
+        """
+
+        if self.__running:
+            print("(Audio)Client is already connected!")
+        else:
             self.__running = True
-            thread = threading.Thread(target=self.__client_streaming)
+
+            self.__client_socket.connect((self.__host, self.__port))
+            self.__streamOut = self.__audio.open(format=self.__audio_format, channels=self.__channels, rate=self.__rate, output=True, frames_per_buffer=self.__frame_chunk)
+            self.__streamIn = self.__audio.open(format=self.__audio_format, channels=self.__channels, rate=self.__rate, input=True, frames_per_buffer=self.__frame_chunk)
+            thread = threading.Thread(target=self.__audio_connection)
             thread.start()
 
-    def stop_stream(self):
+            print("(Audio)Client is now connected to {}:{}".format(self.__host, self.__port))
+        
+    def disconnect(self):
+        """
+        Disconnects client from server.
+        """
+
         if self.__running:
             self.__running = False
+            self.__streamIn.stop_stream()
+            self.__streamIn.close()
+            self.__streamOut.stop_stream()
+            self.__streamOut.close()
+            self.__client_socket.close()
+            self.__audio.terminate()
+            print("(Audio)Client is now disconnected")
         else:
-            print("Client not streaming")
+            print("(Audio)Client is not connected")
 
-    def __client_streaming(self):
-        self.__sending_socket.connect((self.__host, self.__port))
-        self.__stream = self.__audio.open(format=self.__audio_format, channels=self.__channels, rate=self.__rate, input=True, frames_per_buffer=self.__frame_chunk)
-        while self.__running:
-            self.__sending_socket.send(self.__stream.read(self.__frame_chunk))
+class AudioServer:
 
-
-class AudioReceiver:
-
-    def __init__(self, host, port, slots=8, audio_format=pyaudio.paInt16, channels=1, rate=44100, frame_chunk=4096):
+    def __init__(self, host, port, audio_format=pyaudio.paInt16, channels=1, rate=44100, frame_chunk=4096):
         self.__host = host
         self.__port = port
 
-        self.__slots = slots
-        self.__used_slots = 0
+        self.__clients = []
 
         self.__audio_format = audio_format
         self.__channels = channels
@@ -82,31 +105,32 @@ class AudioReceiver:
             print("Audio server is running already")
         else:
             self.__running = True
-            self.__stream = self.__audio.open(format=self.__audio_format, channels=self.__channels, rate=self.__rate, output=True, frames_per_buffer=self.__frame_chunk)
             thread = threading.Thread(target=self.__server_listening)
             thread.start()
 
     def __server_listening(self):
         self.__server_socket.listen()
         while self.__running:
-            self.__block.acquire()
-            connection, address = self.__server_socket.accept()
-            if self.__used_slots >= self.__slots:
-                print("Connection refused! No free slots!")
-                connection.close()
-                self.__block.release()
-                continue
-            else:
-                self.__used_slots += 1
+            client_socket, _ = self.__server_socket.accept()
+            self.__clients.append(client_socket)
 
-            self.__block.release()
-            thread = threading.Thread(target=self.__client_connection, args=(connection, address,))
+            thread = threading.Thread(target=self.__brodcast_audio, args=(client_socket,))
             thread.start()
+            print("server: new (Audio)client connected")
 
-    def __client_connection(self, connection, address):
+    def __brodcast_audio(self, client_socket):
+
         while self.__running:
-            data = connection.recv(self.__frame_chunk)
-            self.__stream.write(data)
+            try:
+                data = client_socket.recv(self.__frame_chunk)
+
+                for client in self.__clients:
+                    client.send(data)
+            except:
+                self.__clients.remove(client_socket)
+                client_socket.close()
+                print("server: a (Audio) client disconnected from server")
+                break
 
     def stop_server(self):
         if self.__running:
@@ -117,6 +141,6 @@ class AudioReceiver:
             self.__block.acquire()
             self.__server_socket.close()
             self.__block.release()
+            print("(Audio)Server is now closed")
         else:
             print("Server not running!")
-
