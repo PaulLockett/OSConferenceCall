@@ -13,7 +13,7 @@ gui_rendered = False
 if label_tartget_ip:
     client = StreamingClient(label_tartget_ip, 9999)
     receiver = AudioClient(label_tartget_ip, 8888)
-    chatRoom = ChatClient(label_tartget_ip, 7777)
+    chatRoom = ChatClient(label_tartget_ip, 9090)
 
 def start_listening():
     t1 = threading.Thread(target=client.start_listening)

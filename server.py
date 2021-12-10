@@ -42,7 +42,7 @@ if ask_gui():
 
     server = StreamingServer(server_address, 9999)
     receiver = AudioServer(server_address, 8888)
-    chatRoom = ChatServer(server_address, 7777)
+    chatRoom = ChatServer(server_address, 9090)
 
     window.wm_deiconify()
 
@@ -63,7 +63,7 @@ else:
     server_address = input("Enter the server address: ")
     server = StreamingServer(server_address, 9999)
     receiver = AudioServer(server_address, 8888)
-    chatRoom = ChatServer(server_address, 7777)
+    chatRoom = ChatServer(server_address, 9090)
 
     server.start_server()
     receiver.start_server()
