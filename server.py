@@ -1,14 +1,9 @@
 from serverlib import *
 import tkinter as tk
+import tkinter.simpledialog as tkSimpleDialog
 import socket
 import threading
 
- 
-local_ip_address = socket.gethostbyname(socket.gethostname())
-
-server = StreamingServer(local_ip_address, 9999)
-receiver = AudioServer(local_ip_address, 8888)
-chatRoom = ChatServer(local_ip_address, 7777)
 
 def start_server():
     t1 = threading.Thread(target=server.start_server)
@@ -25,6 +20,19 @@ def stop_server():
     exit()
 
 window = tk.Tk()
+window.withdraw()
+
+server_address = tkSimpleDialog.askstring("Server Address", "Enter the server address:")
+
+if server_address is None:
+    server_address = socket.gethostbyname(socket.gethostname())
+
+server = StreamingServer(server_address, 9999)
+receiver = AudioServer(server_address, 8888)
+chatRoom = ChatServer(server_address, 7777)
+
+window.wm_deiconify()
+
 window.title("Server")
 window.geometry("300x200")
 

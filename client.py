@@ -67,6 +67,7 @@ def start_chat():
             break
 
 window = tk.Tk()
+window.withdraw()
 window.title("Client")
 window.geometry("300x300")
 
@@ -86,13 +87,20 @@ btn_disconnect = tk.Button(window, text="Disconnect", width=50, command=disconne
 btn_disconnect.pack(anchor=tk.CENTER, expand=True)
 
 server_address = tkSimpleDialog.askstring("Server Address", "Enter the server address:")
+username = tkSimpleDialog.askstring("Username", "Please enter your username:")
+
+loadingWindow = tk.Toplevel()
+loding_label = tk.Label(loadingWindow,text="Loading...", font= ('Aerial 17')).pack(pady=50)
+loadingWindow.update()
+
 
 if server_address:
     client = StreamingClient(server_address, 9999)
     receiver = AudioClient(server_address, 8888)
     chatRoom = ChatClient(server_address, 7777)
 
-username = tkSimpleDialog.askstring("Username", "Please enter your username:")
+loadingWindow.withdraw()
+window.wm_deiconify()
 
 chatWindow = tk.Toplevel(window)
 chatWindow.config(bg="lightgray")
